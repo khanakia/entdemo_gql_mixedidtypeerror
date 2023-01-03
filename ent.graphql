@@ -8,8 +8,10 @@ scalar Cursor
 type Friendship implements Node {
   id: ID!
   createdAt: Time!
-  userID: String!
-  friendID: String!
+  userID: ID!
+  friendID: ID!
+  user: User!
+  friend: User!
 }
 """
 FriendshipWhereInput is used for filtering Friendship objects.
@@ -38,33 +40,39 @@ input FriendshipWhereInput {
   createdAtLT: Time
   createdAtLTE: Time
   """user_id field predicates"""
-  userID: String
-  userIDNEQ: String
-  userIDIn: [String!]
-  userIDNotIn: [String!]
-  userIDGT: String
-  userIDGTE: String
-  userIDLT: String
-  userIDLTE: String
-  userIDContains: String
-  userIDHasPrefix: String
-  userIDHasSuffix: String
-  userIDEqualFold: String
-  userIDContainsFold: String
+  userID: ID
+  userIDNEQ: ID
+  userIDIn: [ID!]
+  userIDNotIn: [ID!]
+  userIDGT: ID
+  userIDGTE: ID
+  userIDLT: ID
+  userIDLTE: ID
+  userIDContains: ID
+  userIDHasPrefix: ID
+  userIDHasSuffix: ID
+  userIDEqualFold: ID
+  userIDContainsFold: ID
   """friend_id field predicates"""
-  friendID: String
-  friendIDNEQ: String
-  friendIDIn: [String!]
-  friendIDNotIn: [String!]
-  friendIDGT: String
-  friendIDGTE: String
-  friendIDLT: String
-  friendIDLTE: String
-  friendIDContains: String
-  friendIDHasPrefix: String
-  friendIDHasSuffix: String
-  friendIDEqualFold: String
-  friendIDContainsFold: String
+  friendID: ID
+  friendIDNEQ: ID
+  friendIDIn: [ID!]
+  friendIDNotIn: [ID!]
+  friendIDGT: ID
+  friendIDGTE: ID
+  friendIDLT: ID
+  friendIDLTE: ID
+  friendIDContains: ID
+  friendIDHasPrefix: ID
+  friendIDHasSuffix: ID
+  friendIDEqualFold: ID
+  friendIDContainsFold: ID
+  """user edge predicates"""
+  hasUser: Boolean
+  hasUserWith: [UserWhereInput!]
+  """friend edge predicates"""
+  hasFriend: Boolean
+  hasFriendWith: [UserWhereInput!]
 }
 """
 An object with an ID.

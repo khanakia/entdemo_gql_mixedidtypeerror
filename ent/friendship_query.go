@@ -6,6 +6,7 @@ import (
 	"context"
 	"entdemo/ent/friendship"
 	"entdemo/ent/predicate"
+	"entdemo/ent/user"
 	"fmt"
 	"math"
 
@@ -23,6 +24,8 @@ type FriendshipQuery struct {
 	order      []OrderFunc
 	fields     []string
 	predicates []predicate.Friendship
+	withUser   *UserQuery
+	withFriend *UserQuery
 	modifiers  []func(*sql.Selector)
 	loadTotal  []func(context.Context, []*Friendship) error
 	// intermediate query (i.e. traversal path).
@@ -59,6 +62,50 @@ func (fq *FriendshipQuery) Unique(unique bool) *FriendshipQuery {
 func (fq *FriendshipQuery) Order(o ...OrderFunc) *FriendshipQuery {
 	fq.order = append(fq.order, o...)
 	return fq
+}
+
+// QueryUser chains the current query on the "user" edge.
+func (fq *FriendshipQuery) QueryUser() *UserQuery {
+	query := &UserQuery{config: fq.config}
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := fq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := fq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(friendship.Table, friendship.FieldID, selector),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, friendship.UserTable, friendship.UserColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(fq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryFriend chains the current query on the "friend" edge.
+func (fq *FriendshipQuery) QueryFriend() *UserQuery {
+	query := &UserQuery{config: fq.config}
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := fq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := fq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(friendship.Table, friendship.FieldID, selector),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, friendship.FriendTable, friendship.FriendColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(fq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // First returns the first Friendship entity from the query.
@@ -242,11 +289,35 @@ func (fq *FriendshipQuery) Clone() *FriendshipQuery {
 		offset:     fq.offset,
 		order:      append([]OrderFunc{}, fq.order...),
 		predicates: append([]predicate.Friendship{}, fq.predicates...),
+		withUser:   fq.withUser.Clone(),
+		withFriend: fq.withFriend.Clone(),
 		// clone intermediate query.
 		sql:    fq.sql.Clone(),
 		path:   fq.path,
 		unique: fq.unique,
 	}
+}
+
+// WithUser tells the query-builder to eager-load the nodes that are connected to
+// the "user" edge. The optional arguments are used to configure the query builder of the edge.
+func (fq *FriendshipQuery) WithUser(opts ...func(*UserQuery)) *FriendshipQuery {
+	query := &UserQuery{config: fq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	fq.withUser = query
+	return fq
+}
+
+// WithFriend tells the query-builder to eager-load the nodes that are connected to
+// the "friend" edge. The optional arguments are used to configure the query builder of the edge.
+func (fq *FriendshipQuery) WithFriend(opts ...func(*UserQuery)) *FriendshipQuery {
+	query := &UserQuery{config: fq.config}
+	for _, opt := range opts {
+		opt(query)
+	}
+	fq.withFriend = query
+	return fq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
@@ -320,8 +391,12 @@ func (fq *FriendshipQuery) prepareQuery(ctx context.Context) error {
 
 func (fq *FriendshipQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Friendship, error) {
 	var (
-		nodes = []*Friendship{}
-		_spec = fq.querySpec()
+		nodes       = []*Friendship{}
+		_spec       = fq.querySpec()
+		loadedTypes = [2]bool{
+			fq.withUser != nil,
+			fq.withFriend != nil,
+		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Friendship).scanValues(nil, columns)
@@ -329,6 +404,7 @@ func (fq *FriendshipQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*F
 	_spec.Assign = func(columns []string, values []any) error {
 		node := &Friendship{config: fq.config}
 		nodes = append(nodes, node)
+		node.Edges.loadedTypes = loadedTypes
 		return node.assignValues(columns, values)
 	}
 	if len(fq.modifiers) > 0 {
@@ -343,12 +419,77 @@ func (fq *FriendshipQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*F
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := fq.withUser; query != nil {
+		if err := fq.loadUser(ctx, query, nodes, nil,
+			func(n *Friendship, e *User) { n.Edges.User = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := fq.withFriend; query != nil {
+		if err := fq.loadFriend(ctx, query, nodes, nil,
+			func(n *Friendship, e *User) { n.Edges.Friend = e }); err != nil {
+			return nil, err
+		}
+	}
 	for i := range fq.loadTotal {
 		if err := fq.loadTotal[i](ctx, nodes); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
+}
+
+func (fq *FriendshipQuery) loadUser(ctx context.Context, query *UserQuery, nodes []*Friendship, init func(*Friendship), assign func(*Friendship, *User)) error {
+	ids := make([]string, 0, len(nodes))
+	nodeids := make(map[string][]*Friendship)
+	for i := range nodes {
+		fk := nodes[i].UserID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	query.Where(user.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "user_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (fq *FriendshipQuery) loadFriend(ctx context.Context, query *UserQuery, nodes []*Friendship, init func(*Friendship), assign func(*Friendship, *User)) error {
+	ids := make([]string, 0, len(nodes))
+	nodeids := make(map[string][]*Friendship)
+	for i := range nodes {
+		fk := nodes[i].FriendID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	query.Where(user.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "friend_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
 }
 
 func (fq *FriendshipQuery) sqlCount(ctx context.Context) (int, error) {

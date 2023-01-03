@@ -67,6 +67,14 @@ type FriendshipWhereInput struct {
 	FriendIDHasSuffix    *string  `json:"friendIDHasSuffix,omitempty"`
 	FriendIDEqualFold    *string  `json:"friendIDEqualFold,omitempty"`
 	FriendIDContainsFold *string  `json:"friendIDContainsFold,omitempty"`
+
+	// "user" edge predicates.
+	HasUser     *bool             `json:"hasUser,omitempty"`
+	HasUserWith []*UserWhereInput `json:"hasUserWith,omitempty"`
+
+	// "friend" edge predicates.
+	HasFriend     *bool             `json:"hasFriend,omitempty"`
+	HasFriendWith []*UserWhereInput `json:"hasFriendWith,omitempty"`
 }
 
 // AddPredicates adds custom predicates to the where input to be used during the filtering phase.
@@ -267,6 +275,42 @@ func (i *FriendshipWhereInput) P() (predicate.Friendship, error) {
 		predicates = append(predicates, friendship.FriendIDContainsFold(*i.FriendIDContainsFold))
 	}
 
+	if i.HasUser != nil {
+		p := friendship.HasUser()
+		if !*i.HasUser {
+			p = friendship.Not(p)
+		}
+		predicates = append(predicates, p)
+	}
+	if len(i.HasUserWith) > 0 {
+		with := make([]predicate.User, 0, len(i.HasUserWith))
+		for _, w := range i.HasUserWith {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'HasUserWith'", err)
+			}
+			with = append(with, p)
+		}
+		predicates = append(predicates, friendship.HasUserWith(with...))
+	}
+	if i.HasFriend != nil {
+		p := friendship.HasFriend()
+		if !*i.HasFriend {
+			p = friendship.Not(p)
+		}
+		predicates = append(predicates, p)
+	}
+	if len(i.HasFriendWith) > 0 {
+		with := make([]predicate.User, 0, len(i.HasFriendWith))
+		for _, w := range i.HasFriendWith {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'HasFriendWith'", err)
+			}
+			with = append(with, p)
+		}
+		predicates = append(predicates, friendship.HasFriendWith(with...))
+	}
 	switch len(predicates) {
 	case 0:
 		return nil, ErrEmptyFriendshipWhereInput

@@ -15,7 +15,7 @@ type User struct {
 // Fields of the User.
 func (User) Fields() []ent.Field {
 	return []ent.Field{
-		// field.String("id"),
+		field.String("id"),
 		field.String("name").
 			Default("unknown"),
 	}

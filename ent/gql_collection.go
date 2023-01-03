@@ -23,6 +23,30 @@ func (f *FriendshipQuery) CollectFields(ctx context.Context, satisfies ...string
 
 func (f *FriendshipQuery) collectField(ctx context.Context, op *graphql.OperationContext, field graphql.CollectedField, path []string, satisfies ...string) error {
 	path = append([]string(nil), path...)
+	for _, field := range graphql.CollectFields(op, field.Selections, satisfies) {
+		switch field.Name {
+		case "user":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = &UserQuery{config: f.config}
+			)
+			if err := query.collectField(ctx, op, field, path, satisfies...); err != nil {
+				return err
+			}
+			f.withUser = query
+		case "friend":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = &UserQuery{config: f.config}
+			)
+			if err := query.collectField(ctx, op, field, path, satisfies...); err != nil {
+				return err
+			}
+			f.withFriend = query
+		}
+	}
 	return nil
 }
 

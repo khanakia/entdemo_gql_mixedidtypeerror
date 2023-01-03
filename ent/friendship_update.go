@@ -6,6 +6,7 @@ import (
 	"context"
 	"entdemo/ent/friendship"
 	"entdemo/ent/predicate"
+	"entdemo/ent/user"
 	"errors"
 	"fmt"
 	"time"
@@ -54,9 +55,31 @@ func (fu *FriendshipUpdate) SetFriendID(s string) *FriendshipUpdate {
 	return fu
 }
 
+// SetUser sets the "user" edge to the User entity.
+func (fu *FriendshipUpdate) SetUser(u *User) *FriendshipUpdate {
+	return fu.SetUserID(u.ID)
+}
+
+// SetFriend sets the "friend" edge to the User entity.
+func (fu *FriendshipUpdate) SetFriend(u *User) *FriendshipUpdate {
+	return fu.SetFriendID(u.ID)
+}
+
 // Mutation returns the FriendshipMutation object of the builder.
 func (fu *FriendshipUpdate) Mutation() *FriendshipMutation {
 	return fu.mutation
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (fu *FriendshipUpdate) ClearUser() *FriendshipUpdate {
+	fu.mutation.ClearUser()
+	return fu
+}
+
+// ClearFriend clears the "friend" edge to the User entity.
+func (fu *FriendshipUpdate) ClearFriend() *FriendshipUpdate {
+	fu.mutation.ClearFriend()
+	return fu
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -66,12 +89,18 @@ func (fu *FriendshipUpdate) Save(ctx context.Context) (int, error) {
 		affected int
 	)
 	if len(fu.hooks) == 0 {
+		if err = fu.check(); err != nil {
+			return 0, err
+		}
 		affected, err = fu.sqlSave(ctx)
 	} else {
 		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 			mutation, ok := m.(*FriendshipMutation)
 			if !ok {
 				return nil, fmt.Errorf("unexpected mutation type %T", m)
+			}
+			if err = fu.check(); err != nil {
+				return 0, err
 			}
 			fu.mutation = mutation
 			affected, err = fu.sqlSave(ctx)
@@ -113,6 +142,17 @@ func (fu *FriendshipUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (fu *FriendshipUpdate) check() error {
+	if _, ok := fu.mutation.UserID(); fu.mutation.UserCleared() && !ok {
+		return errors.New(`ent: clearing a required unique edge "Friendship.user"`)
+	}
+	if _, ok := fu.mutation.FriendID(); fu.mutation.FriendCleared() && !ok {
+		return errors.New(`ent: clearing a required unique edge "Friendship.friend"`)
+	}
+	return nil
+}
+
 func (fu *FriendshipUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	_spec := &sqlgraph.UpdateSpec{
 		Node: &sqlgraph.NodeSpec{
@@ -134,11 +174,75 @@ func (fu *FriendshipUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := fu.mutation.CreatedAt(); ok {
 		_spec.SetField(friendship.FieldCreatedAt, field.TypeTime, value)
 	}
-	if value, ok := fu.mutation.UserID(); ok {
-		_spec.SetField(friendship.FieldUserID, field.TypeString, value)
+	if fu.mutation.UserCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.UserTable,
+			Columns: []string{friendship.UserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if value, ok := fu.mutation.FriendID(); ok {
-		_spec.SetField(friendship.FieldFriendID, field.TypeString, value)
+	if nodes := fu.mutation.UserIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.UserTable,
+			Columns: []string{friendship.UserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if fu.mutation.FriendCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.FriendTable,
+			Columns: []string{friendship.FriendColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := fu.mutation.FriendIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.FriendTable,
+			Columns: []string{friendship.FriendColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, fu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -185,9 +289,31 @@ func (fuo *FriendshipUpdateOne) SetFriendID(s string) *FriendshipUpdateOne {
 	return fuo
 }
 
+// SetUser sets the "user" edge to the User entity.
+func (fuo *FriendshipUpdateOne) SetUser(u *User) *FriendshipUpdateOne {
+	return fuo.SetUserID(u.ID)
+}
+
+// SetFriend sets the "friend" edge to the User entity.
+func (fuo *FriendshipUpdateOne) SetFriend(u *User) *FriendshipUpdateOne {
+	return fuo.SetFriendID(u.ID)
+}
+
 // Mutation returns the FriendshipMutation object of the builder.
 func (fuo *FriendshipUpdateOne) Mutation() *FriendshipMutation {
 	return fuo.mutation
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (fuo *FriendshipUpdateOne) ClearUser() *FriendshipUpdateOne {
+	fuo.mutation.ClearUser()
+	return fuo
+}
+
+// ClearFriend clears the "friend" edge to the User entity.
+func (fuo *FriendshipUpdateOne) ClearFriend() *FriendshipUpdateOne {
+	fuo.mutation.ClearFriend()
+	return fuo
 }
 
 // Select allows selecting one or more fields (columns) of the returned entity.
@@ -204,12 +330,18 @@ func (fuo *FriendshipUpdateOne) Save(ctx context.Context) (*Friendship, error) {
 		node *Friendship
 	)
 	if len(fuo.hooks) == 0 {
+		if err = fuo.check(); err != nil {
+			return nil, err
+		}
 		node, err = fuo.sqlSave(ctx)
 	} else {
 		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 			mutation, ok := m.(*FriendshipMutation)
 			if !ok {
 				return nil, fmt.Errorf("unexpected mutation type %T", m)
+			}
+			if err = fuo.check(); err != nil {
+				return nil, err
 			}
 			fuo.mutation = mutation
 			node, err = fuo.sqlSave(ctx)
@@ -257,6 +389,17 @@ func (fuo *FriendshipUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (fuo *FriendshipUpdateOne) check() error {
+	if _, ok := fuo.mutation.UserID(); fuo.mutation.UserCleared() && !ok {
+		return errors.New(`ent: clearing a required unique edge "Friendship.user"`)
+	}
+	if _, ok := fuo.mutation.FriendID(); fuo.mutation.FriendCleared() && !ok {
+		return errors.New(`ent: clearing a required unique edge "Friendship.friend"`)
+	}
+	return nil
+}
+
 func (fuo *FriendshipUpdateOne) sqlSave(ctx context.Context) (_node *Friendship, err error) {
 	_spec := &sqlgraph.UpdateSpec{
 		Node: &sqlgraph.NodeSpec{
@@ -295,11 +438,75 @@ func (fuo *FriendshipUpdateOne) sqlSave(ctx context.Context) (_node *Friendship,
 	if value, ok := fuo.mutation.CreatedAt(); ok {
 		_spec.SetField(friendship.FieldCreatedAt, field.TypeTime, value)
 	}
-	if value, ok := fuo.mutation.UserID(); ok {
-		_spec.SetField(friendship.FieldUserID, field.TypeString, value)
+	if fuo.mutation.UserCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.UserTable,
+			Columns: []string{friendship.UserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if value, ok := fuo.mutation.FriendID(); ok {
-		_spec.SetField(friendship.FieldFriendID, field.TypeString, value)
+	if nodes := fuo.mutation.UserIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.UserTable,
+			Columns: []string{friendship.UserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if fuo.mutation.FriendCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.FriendTable,
+			Columns: []string{friendship.FriendColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := fuo.mutation.FriendIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.FriendTable,
+			Columns: []string{friendship.FriendColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &Friendship{config: fuo.config}
 	_spec.Assign = _node.assignValues

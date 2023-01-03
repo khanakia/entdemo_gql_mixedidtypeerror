@@ -4,6 +4,7 @@ package ent
 
 import (
 	"entdemo/ent/friendship"
+	"entdemo/ent/user"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,48 @@ type Friendship struct {
 	UserID string `json:"user_id,omitempty"`
 	// FriendID holds the value of the "friend_id" field.
 	FriendID string `json:"friend_id,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the FriendshipQuery when eager-loading is set.
+	Edges FriendshipEdges `json:"edges"`
+}
+
+// FriendshipEdges holds the relations/edges for other nodes in the graph.
+type FriendshipEdges struct {
+	// User holds the value of the user edge.
+	User *User `json:"user,omitempty"`
+	// Friend holds the value of the friend edge.
+	Friend *User `json:"friend,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [2]bool
+	// totalCount holds the count of the edges above.
+	totalCount [2]map[string]int
+}
+
+// UserOrErr returns the User value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e FriendshipEdges) UserOrErr() (*User, error) {
+	if e.loadedTypes[0] {
+		if e.User == nil {
+			// Edge was loaded but was not found.
+			return nil, &NotFoundError{label: user.Label}
+		}
+		return e.User, nil
+	}
+	return nil, &NotLoadedError{edge: "user"}
+}
+
+// FriendOrErr returns the Friend value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e FriendshipEdges) FriendOrErr() (*User, error) {
+	if e.loadedTypes[1] {
+		if e.Friend == nil {
+			// Edge was loaded but was not found.
+			return nil, &NotFoundError{label: user.Label}
+		}
+		return e.Friend, nil
+	}
+	return nil, &NotLoadedError{edge: "friend"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -75,6 +118,16 @@ func (f *Friendship) assignValues(columns []string, values []any) error {
 		}
 	}
 	return nil
+}
+
+// QueryUser queries the "user" edge of the Friendship entity.
+func (f *Friendship) QueryUser() *UserQuery {
+	return (&FriendshipClient{config: f.config}).QueryUser(f)
+}
+
+// QueryFriend queries the "friend" edge of the Friendship entity.
+func (f *Friendship) QueryFriend() *UserQuery {
+	return (&FriendshipClient{config: f.config}).QueryFriend(f)
 }
 
 // Update returns a builder for updating this Friendship.

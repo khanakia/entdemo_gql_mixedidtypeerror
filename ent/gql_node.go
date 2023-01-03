@@ -46,7 +46,7 @@ func (f *Friendship) Node(ctx context.Context) (node *Node, err error) {
 		ID:     f.ID,
 		Type:   "Friendship",
 		Fields: make([]*Field, 3),
-		Edges:  make([]*Edge, 0),
+		Edges:  make([]*Edge, 2),
 	}
 	var buf []byte
 	if buf, err = json.Marshal(f.CreatedAt); err != nil {
@@ -72,6 +72,26 @@ func (f *Friendship) Node(ctx context.Context) (node *Node, err error) {
 		Type:  "string",
 		Name:  "friend_id",
 		Value: string(buf),
+	}
+	node.Edges[0] = &Edge{
+		Type: "User",
+		Name: "user",
+	}
+	err = f.QueryUser().
+		Select(user.FieldID).
+		Scan(ctx, &node.Edges[0].IDs)
+	if err != nil {
+		return nil, err
+	}
+	node.Edges[1] = &Edge{
+		Type: "User",
+		Name: "friend",
+	}
+	err = f.QueryFriend().
+		Select(user.FieldID).
+		Scan(ctx, &node.Edges[1].IDs)
+	if err != nil {
+		return nil, err
 	}
 	return node, nil
 }

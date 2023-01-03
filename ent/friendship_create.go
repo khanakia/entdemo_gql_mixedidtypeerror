@@ -5,6 +5,7 @@ package ent
 import (
 	"context"
 	"entdemo/ent/friendship"
+	"entdemo/ent/user"
 	"errors"
 	"fmt"
 	"time"
@@ -50,6 +51,16 @@ func (fc *FriendshipCreate) SetFriendID(s string) *FriendshipCreate {
 func (fc *FriendshipCreate) SetID(s string) *FriendshipCreate {
 	fc.mutation.SetID(s)
 	return fc
+}
+
+// SetUser sets the "user" edge to the User entity.
+func (fc *FriendshipCreate) SetUser(u *User) *FriendshipCreate {
+	return fc.SetUserID(u.ID)
+}
+
+// SetFriend sets the "friend" edge to the User entity.
+func (fc *FriendshipCreate) SetFriend(u *User) *FriendshipCreate {
+	return fc.SetFriendID(u.ID)
 }
 
 // Mutation returns the FriendshipMutation object of the builder.
@@ -146,6 +157,12 @@ func (fc *FriendshipCreate) check() error {
 	if _, ok := fc.mutation.FriendID(); !ok {
 		return &ValidationError{Name: "friend_id", err: errors.New(`ent: missing required field "Friendship.friend_id"`)}
 	}
+	if _, ok := fc.mutation.UserID(); !ok {
+		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "Friendship.user"`)}
+	}
+	if _, ok := fc.mutation.FriendID(); !ok {
+		return &ValidationError{Name: "friend", err: errors.New(`ent: missing required edge "Friendship.friend"`)}
+	}
 	return nil
 }
 
@@ -186,13 +203,45 @@ func (fc *FriendshipCreate) createSpec() (*Friendship, *sqlgraph.CreateSpec) {
 		_spec.SetField(friendship.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
-	if value, ok := fc.mutation.UserID(); ok {
-		_spec.SetField(friendship.FieldUserID, field.TypeString, value)
-		_node.UserID = value
+	if nodes := fc.mutation.UserIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.UserTable,
+			Columns: []string{friendship.UserColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.UserID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
 	}
-	if value, ok := fc.mutation.FriendID(); ok {
-		_spec.SetField(friendship.FieldFriendID, field.TypeString, value)
-		_node.FriendID = value
+	if nodes := fc.mutation.FriendIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   friendship.FriendTable,
+			Columns: []string{friendship.FriendColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: &sqlgraph.FieldSpec{
+					Type:   field.TypeString,
+					Column: user.FieldID,
+				},
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.FriendID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

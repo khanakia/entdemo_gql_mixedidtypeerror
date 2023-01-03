@@ -20,6 +20,20 @@ var (
 		Name:       "friendships",
 		Columns:    FriendshipsColumns,
 		PrimaryKey: []*schema.Column{FriendshipsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "friendships_users_user",
+				Columns:    []*schema.Column{FriendshipsColumns[2]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "friendships_users_friend",
+				Columns:    []*schema.Column{FriendshipsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
 	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
@@ -40,4 +54,6 @@ var (
 )
 
 func init() {
+	FriendshipsTable.ForeignKeys[0].RefTable = UsersTable
+	FriendshipsTable.ForeignKeys[1].RefTable = UsersTable
 }

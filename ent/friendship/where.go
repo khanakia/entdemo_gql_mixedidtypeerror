@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 // ID filters vertices based on their ID field.
@@ -360,6 +361,62 @@ func FriendIDEqualFold(v string) predicate.Friendship {
 func FriendIDContainsFold(v string) predicate.Friendship {
 	return predicate.Friendship(func(s *sql.Selector) {
 		s.Where(sql.ContainsFold(s.C(FieldFriendID), v))
+	})
+}
+
+// HasUser applies the HasEdge predicate on the "user" edge.
+func HasUser() predicate.Friendship {
+	return predicate.Friendship(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(UserTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, UserTable, UserColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUserWith applies the HasEdge predicate on the "user" edge with a given conditions (other predicates).
+func HasUserWith(preds ...predicate.User) predicate.Friendship {
+	return predicate.Friendship(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(UserInverseTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, UserTable, UserColumn),
+		)
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasFriend applies the HasEdge predicate on the "friend" edge.
+func HasFriend() predicate.Friendship {
+	return predicate.Friendship(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(FriendTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, FriendTable, FriendColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasFriendWith applies the HasEdge predicate on the "friend" edge with a given conditions (other predicates).
+func HasFriendWith(preds ...predicate.User) predicate.Friendship {
+	return predicate.Friendship(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.To(FriendInverseTable, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, FriendTable, FriendColumn),
+		)
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
 	})
 }
 
